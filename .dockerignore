@@ -1,0 +1,13 @@
+.git/
+.github/
+.gitignore
+node_modules/
+coverage/
+dist/
+infra/
+test/
+README.md
+Dockerfile
+sonar-project.properties
+*.log
+.DS_Store

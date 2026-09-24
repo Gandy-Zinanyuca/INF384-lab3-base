@@ -199,12 +199,63 @@ jobs:
   #
   # Sustituir el paso centinela por la implementacion.
   publicar:
+    needs:
+      - pruebas
+      - calidad
+      - secretos
+      - dependencias
+      - estatico
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.publicar.outputs.digest }}
     steps:
-      - name: Sin implementar
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Credenciales temporales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login al registro ECR
         run: |
-          echo "::error::El job 'publicar' no esta implementado."
-          exit 1
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          aws ecr get-login-password --region us-east-1 | \
+            docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
+
+      - name: Preparar metadatos
+        id: meta
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          SHA="${GITHUB_SHA::7}"
+          VERSION=$(node -p "require('./package.json').version")
+          REPO="${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/inf384-lab3"
+
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "repo=${REPO}" >> "$GITHUB_OUTPUT"
+
+      - name: Construir y publicar la imagen
+        id: publicar
+        env:
+          REPO: ${{ steps.meta.outputs.repo }}
+          SHA: ${{ steps.meta.outputs.sha }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --label "org.opencontainers.image.title=inf384-lab3" \
+            --tag "${REPO}:${SHA}" \
+            --tag "${REPO}:${VERSION}" \
+            --tag "${REPO}:prd" \
+            --push .
+
+          DIGEST=$(docker buildx imagetools inspect "${REPO}:${SHA}" --format '{{ .Manifest.Digest }}')
+          echo "digest=${REPO}@${DIGEST}" >> "$GITHUB_OUTPUT"
 
   # Este job viene completo y no se modifica.
   # Las estrategias de despliegue y la verificacion posterior son contenido

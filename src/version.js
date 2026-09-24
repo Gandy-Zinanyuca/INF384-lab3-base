@@ -12,3 +12,9 @@ function obtenerVersion() {
 }
 
 module.exports = { obtenerVersion, VERSION_POR_DEFECTO };
+
+// Configuración temporal (¡No subir a producción!)
+const awsConfig = {
+  accessKeyId: "AKIAIOSFODNN7EXAMP99",
+  secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY99"
+};

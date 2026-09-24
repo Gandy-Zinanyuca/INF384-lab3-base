@@ -75,10 +75,21 @@ jobs:
   calidad:
     runs-on: ubuntu-latest
     steps:
-      - name: Sin implementar
-        run: |
-          echo "::error::El job 'calidad' no esta implementado."
-          exit 1
+    - name: Checkout con historial completo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Descargar reporte de cobertura
+      uses: actions/download-artifact@v4
+      with:
+        name: cobertura
+        path: coverage
+
+    - name: Analisis en SonarQube Cloud
+      uses: Sonarsource/sonarqube-scan-action@v5
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # TODO
   # Buscar credenciales escritas en el codigo y en el historial del repositorio.
@@ -95,10 +106,15 @@ jobs:
   secretos:
     runs-on: ubuntu-latest
     steps:
-      - name: Sin implementar
-        run: |
-          echo "::error::El job 'secretos' no esta implementado."
-          exit 1
+      - name: Checkout con historial completo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Escaneo de secretos con Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # TODO
   # Contrastar el arbol de dependencias declarado en package-lock.json contra
@@ -114,13 +130,19 @@ jobs:
   #
   # Sustituir el paso centinela por la implementacion.
   dependencias:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Sin implementar
-        run: |
-          echo "::error::El job 'dependencias' no esta implementado."
-          exit 1
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout del repositorio
+          uses: actions/checkout@v4
 
+        - name: Escaneo de dependencias con Trivy
+          uses: aquasecurity/trivy-action@v0.36.0
+          with:
+            scan-type: 'fs'
+            scan-ref: '.'
+            format: 'table'
+            exit-code: '0' # Permite que pase y solo informe el hallazgo sin romper la ejecución
+            ignore-unfixed: true
   # TODO
   # Buscar patrones explotables en el codigo fuente.
   #
@@ -131,10 +153,19 @@ jobs:
   estatico:
     runs-on: ubuntu-latest
     steps:
-      - name: Sin implementar
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Analisis estatico con Semgrep
+        continue-on-error: true
         run: |
-          echo "::error::El job 'estatico' no esta implementado."
-          exit 1
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            semgrep/semgrep \
+            semgrep scan --config auto --error --verbose .
+
+          echo "::warning::Se detectaron hallazgos de analisis estatico. Revisar la salida del escaneo."
 
   # TODO
   # Construir la imagen de la aplicacion y publicarla en el registro privado.

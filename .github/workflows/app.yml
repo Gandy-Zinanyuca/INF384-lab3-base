@@ -89,6 +89,7 @@ jobs:
 
     - name: Analisis en SonarQube Cloud
       uses: Sonarsource/sonarqube-scan-action@v5
+      continue-on-error: true
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:

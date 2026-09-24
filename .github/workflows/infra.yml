@@ -41,6 +41,10 @@ jobs:
         with:
           terraform_version: 1.10.5
 
+      - name: Verificar formato de Terraform
+        working-directory: infra
+        run: terraform fmt -check -recursive
+
       - name: Terraform init con backend remoto
         working-directory: infra
         run: terraform init -backend-config=backend.hcl
@@ -147,42 +151,9 @@ jobs:
         working-directory: infra
         run: terraform show -json tfplan > tfplan.json
 
-      - name: Revisar eliminaciones en el plan
-        working-directory: infra
-        run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          plan = json.loads(Path('tfplan.json').read_text())
-          deletes = []
-          for change in plan.get('resource_changes', []):
-              action = change.get('change', {}).get('actions', [])
-              if 'delete' in action or 'delete_then_create' in action:
-                  deletes.append(change.get('address'))
-
-          if deletes:
-              print('::error::Se detectaron eliminaciones en el plan:')
-              for item in deletes:
-                  print(f'  - {item}')
-              raise SystemExit(1)
-
-          print('No hay acciones de destruccion en el plan.')
-          PY
-
       - name: Exportar plan legible
         working-directory: infra
         run: terraform show -no-color tfplan > tfplan.txt
-
-      - name: Subir artefacto del plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan
-          path: |
-            infra/tfplan
-            infra/tfplan.json
-            infra/tfplan.txt
-          if-no-files-found: error
 
       - name: Publicar plan en el pull request
         if: github.event_name == 'pull_request'
@@ -219,6 +190,39 @@ jobs:
                 body: commentBody,
               });
             }
+
+      - name: Revisar eliminaciones en el plan
+        working-directory: infra
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          plan = json.loads(Path('tfplan.json').read_text())
+          deletes = []
+          for change in plan.get('resource_changes', []):
+              action = change.get('change', {}).get('actions', [])
+              if 'delete' in action or 'delete_then_create' in action:
+                  deletes.append(change.get('address'))
+
+          if deletes:
+              print('::error::Se detectaron eliminaciones en el plan:')
+              for item in deletes:
+                  print(f'  - {item}')
+              raise SystemExit(1)
+
+          print('No hay acciones de destruccion en el plan.')
+          PY
+
+      - name: Subir artefacto del plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: |
+            infra/tfplan
+            infra/tfplan.json
+            infra/tfplan.txt
+          if-no-files-found: error
 
   # TODO
   # Aplicar el plan que produjo el job anterior, sin recalcularlo.
